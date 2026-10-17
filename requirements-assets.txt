@@ -1,0 +1,4 @@
+# Optional: only required to reproduce animation extraction from the recording.
+opencv-python==4.13.0.92
+numpy==2.4.4
+Pillow==12.2.0

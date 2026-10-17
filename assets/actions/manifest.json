@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "q_wave",
+      "name": "摆摆手",
+      "sheet": "q_wave.png",
+      "frame_width": 192,
+      "frame_height": 208,
+      "frame_count": 69,
+      "fps": 30.0,
+      "loops": 2,
+      "random": true
+    },
+    {
+      "id": "q_wiggle",
+      "name": "扭扭肚子",
+      "sheet": "q_wiggle.png",
+      "frame_width": 192,
+      "frame_height": 208,
+      "frame_count": 103,
+      "fps": 30.0,
+      "loops": 2,
+      "random": true
+    },
+    {
+      "id": "q_drag",
+      "name": "骑狗兜风",
+      "sheet": "q_drag.png",
+      "frame_width": 192,
+      "frame_height": 208,
+      "frame_count": 21,
+      "fps": 30.0,
+      "loops": 1,
+      "random": false,
+      "trigger": "drag"
+    }
+  ]
+}

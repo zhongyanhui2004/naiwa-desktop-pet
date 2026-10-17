@@ -1,0 +1,15 @@
+{
+  "source": "d9c2ecbe5a7d40b323065c3996aa7b9b.mp4",
+  "source_sha256": "02ad4d1b85fd7671a872299af83834fd9e6528b531359afefa05e9bca126f770",
+  "source_fps": 30.0,
+  "source_frames": 169,
+  "crop": [
+    0,
+    344,
+    592,
+    934
+  ],
+  "source_start_frame": 28,
+  "source_end_frame_exclusive": 49,
+  "processing": "Remove black letterboxing, edge-connected checker background and detached marks; retain the recorded riding motion on a fixed transparent canvas."
+}

@@ -1,0 +1,33 @@
+{
+  "source": "20261016-1016-24.6134314.mp4",
+  "source_sha256": "1334cbc3ecc143a2c1ea983ae1f50a470b7725be3795a7e3dcdb629d72e44157",
+  "source_fps": 30.0,
+  "source_frames": 103,
+  "processing": "Crop each sticker, remove edge-connected neutral background, align to a fixed transparent canvas; preserve the recorded motion.",
+  "actions": [
+    {
+      "id": "q_wave",
+      "crop": [
+        60,
+        32,
+        229,
+        195
+      ],
+      "source_start_frame": 27,
+      "source_end_frame_exclusive": 96,
+      "sampling_stride": 1
+    },
+    {
+      "id": "q_wiggle",
+      "crop": [
+        59,
+        214,
+        223,
+        385
+      ],
+      "source_start_frame": 0,
+      "source_end_frame_exclusive": 103,
+      "sampling_stride": 1
+    }
+  ]
+}

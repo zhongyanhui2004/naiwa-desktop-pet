@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/timerring/codex-pet-naiwa",
+  "revision": "3c0cd7ca231f02e0d4d6956fc6ce86eb9f0cfb50",
+  "files": {
+    "assets/naifrog/spritesheet.webp": "e86e8b61584df7897ef7a60c3ba6a8dd92a798b3a5bdba5080351a896927f588",
+    "assets/naifrog/pet.json": "b2f9fa5814d04a6aeedc2f5e74ad1fa506628c64df6516072b2be694c4a646c7"
+  }
+}
