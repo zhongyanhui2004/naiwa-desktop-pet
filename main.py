@@ -9,6 +9,8 @@ from logging.handlers import RotatingFileHandler
 import os
 from pathlib import Path
 import sys
+import tempfile
+import time
 
 from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtGui import QFont
@@ -16,6 +18,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from naiwa import PetWindow
+from version import APP_VERSION
 
 
 def main() -> int:
@@ -33,13 +36,23 @@ def main() -> int:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Naiwa.DesktopPet.1")
     app = QApplication(sys.argv[:1])
     app.setApplicationName("奶娃桌宠")
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("NaiwaDesktopPet")
     app.setFont(QFont("Microsoft YaHei UI", 10))
     app.setQuitOnLastWindowClosed(False)
-    data = args.data_dir or Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local"))) / "NaiwaDesktopPet"
+    smoke_data = tempfile.TemporaryDirectory(prefix="naiwa-smoke-") if args.smoke_test and args.data_dir is None else None
+    data = args.data_dir or (Path(smoke_data.name) if smoke_data else
+                            Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local"))) / "NaiwaDesktopPet")
     data.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(data / "naiwa.log", maxBytes=500_000, backupCount=1, encoding="utf-8")
     logging.basicConfig(level=logging.INFO, handlers=[handler], format="%(asctime)s %(levelname)s %(message)s")
+
+    def cleanup_smoke_data():
+        if smoke_data is not None:
+            # Windows cannot remove the temporary log while its handle is open.
+            logging.getLogger().removeHandler(handler)
+            handler.close()
+            smoke_data.cleanup()
 
     def log_exception(kind, value, traceback):
         logging.error("Unhandled error", exc_info=(kind, value, traceback))
@@ -69,11 +82,13 @@ def main() -> int:
 
     root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     try:
-        pet = PetWindow(root / "assets", data / "settings.json", enable_tray=not args.no_tray and not args.smoke_test)
+        pet = PetWindow(root / "assets", data / "settings.json",
+                        enable_tray=not args.no_tray and not args.smoke_test)
     except Exception as error:
         logging.exception("Cannot start pet")
         if not args.smoke_test:
             QMessageBox.critical(None, "奶娃还没准备好", f"启动失败：{error}\n\n请保留完整程序文件夹。日志：{data / 'naiwa.log'}")
+        cleanup_smoke_data()
         return 1
     app.setWindowIcon(pet.app_icon)
     if server is not None:
@@ -97,8 +112,35 @@ def main() -> int:
             try:
                 pet.open_panel()
                 app.processEvents()
+                sleep_animation_available = "sleep" in pet.custom_actions
+                if not sleep_animation_available:
+                    raise RuntimeError("Sleep animation was not loaded")
+                pet.play("sleep", speak=False)
+                # Make the animation older than many cycles without delaying
+                # the smoke test; waking resets its animation clock normally.
+                sleep_position = pet.pos()
+                pet.action_started -= 600
+                pet._tick()
+                sleep_persists = pet.sleeping and pet.action == "sleep" and pet.pos() == sleep_position
+                if not sleep_persists:
+                    raise RuntimeError("Sleep did not persist without movement")
+                pet.wake(speak=False)
+                wake_restores_idle = not pet.sleeping and pet.action == "idle"
+                if not wake_restores_idle:
+                    raise RuntimeError("Waking did not restore idle")
+                relax_animation_available = "relax" in pet.custom_actions
+                if not relax_animation_available:
+                    raise RuntimeError("Relax animation was not loaded")
+                pet.play("relax", speak=False)
+                pet.action_until = time.monotonic() - 1
+                pet._tick()
+                relax_returns_idle = pet.action == "idle" and not pet.sleeping
+                if not relax_returns_idle:
+                    raise RuntimeError("Relax action did not finish")
+                app.processEvents()
                 report = {
                     "ok": True,
+                    "version": APP_VERSION,
                     "sprite_size": [1536, 2288],
                     "animation_frames": {name: len(frames) for name, frames in pet.atlas.frames.items()},
                     "look_directions": len(pet.atlas.look),
@@ -107,6 +149,13 @@ def main() -> int:
                                                "trigger": action.trigger}
                                        for name, action in pet.custom_actions.items()},
                     "auto_actions_enabled": pet.preferences.auto_actions,
+                    "sleep_animation_available": sleep_animation_available,
+                    "auto_sleep_enabled": pet.preferences.auto_sleep,
+                    "sleep_persists": sleep_persists,
+                    "wake_restores_idle": wake_restores_idle,
+                    "relax_animation_available": relax_animation_available,
+                    "silent": True,
+                    "relax_returns_idle": relax_returns_idle,
                     "pet_visible": pet.isVisible(),
                     "panel_visible": pet.panel.isVisible(),
                     "frozen": bool(getattr(sys, "frozen", False)),
@@ -137,12 +186,13 @@ def main() -> int:
     elif args.quit_after is not None:
         QTimer.singleShot(max(100, round(args.quit_after * 1000)), pet.quit_pet)
 
-    logging.info("Started Naiwa Desktop Pet 1.5")
+    logging.info("Started Naiwa Desktop Pet %s", APP_VERSION)
     exit_code = app.exec()
     if server is not None:
         server.close()
     if lock is not None:
         lock.unlock()
+    cleanup_smoke_data()
     return exit_code
 
 

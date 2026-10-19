@@ -34,6 +34,37 @@ Its source hash and extraction range are recorded in
 `assets/actions/q_drag_SOURCE.json`. This image is likewise not covered by
 the application code's MIT license. The source video is not distributed.
 
+## Sleep animation (2.0)
+
+`assets/actions/sleep.png` is a deterministic compilation of three transparent
+PNG frames from https://github.com/woainiunai/yellow-belly-creature-desktop,
+pinned to revision `45857f860a221a4af1fd2469d658cc7ad8b4462e`.
+The source files are `assets/animations/sleep/00.png`, `01.png` and `02.png`.
+The original character pose and blue Z marks are preserved; images are only
+cropped, resized and aligned to the application's existing frame canvas.
+Source hashes, exact processing and rebuilding instructions are recorded in
+`assets/actions/sleep_SOURCE.json` and `tools/import_sleep_action.py`.
+
+The upstream `package.json` declares `"license": "MIT"`, but the pinned
+repository has no standalone license text, and its README does not establish
+permission for the character artwork or animation. The README describes these
+frames as migrated DPET/Shimeji material. Applicable permissions for this
+third-party character artwork have not been independently verified. It is
+excluded from this application's MIT code license.
+
+## Relax animation (2.0)
+
+`assets/actions/relax.png` compiles four transparent PNG frames from
+https://github.com/woainiunai/yellow-belly-creature-desktop at the same pinned
+revision `45857f860a221a4af1fd2469d658cc7ad8b4462e`, under
+`assets/animations/relax/`. The original pose and green clouds are preserved.
+Source hashes and deterministic processing are in `assets/actions/relax_SOURCE.json`.
+The artwork has the same unconfirmed redistribution status as the sleep frames
+above and is excluded from this application's MIT code license.
+
+Only the visual frames are included. All application actions are silent;
+no upstream audio or locally generated sound is included or played.
+
 ## PySide6, Shiboken6 and Qt 6.12.0
 
 Copyright (C) The Qt Company Ltd. and other contributors.

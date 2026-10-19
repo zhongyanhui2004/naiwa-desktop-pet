@@ -34,6 +34,29 @@
       "loops": 1,
       "random": false,
       "trigger": "drag"
+    },
+    {
+      "id": "sleep",
+      "name": "睡觉",
+      "sheet": "sleep.png",
+      "frame_width": 192,
+      "frame_height": 208,
+      "frame_count": 3,
+      "fps": 1.0,
+      "loops": 1,
+      "random": false,
+      "trigger": "sleep"
+    },
+    {
+      "id": "relax",
+      "name": "放松放屁",
+      "sheet": "relax.png",
+      "frame_width": 192,
+      "frame_height": 208,
+      "frame_count": 4,
+      "fps": 1.0,
+      "loops": 1,
+      "random": false
     }
   ]
 }

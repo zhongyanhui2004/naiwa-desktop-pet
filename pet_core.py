@@ -79,7 +79,7 @@ def load_custom_actions(manifest: Path) -> dict[str, CustomAction]:
                     or type(loops) is not int or not 1 <= loops <= 20 or type(automatic) is not bool):
                 raise ValueError("Invalid playback settings")
             trigger = entry.get("trigger")
-            if trigger not in (None, "drag"):
+            if trigger not in (None, "drag", "sleep"):
                 raise ValueError("Invalid action trigger")
             if not isinstance(entry["sheet"], str):
                 raise ValueError("Invalid sheet filename")
@@ -87,7 +87,7 @@ def load_custom_actions(manifest: Path) -> dict[str, CustomAction]:
             if not sheet.is_relative_to(folder) or sheet == folder:
                 raise ValueError("Action sheet must be inside its asset folder")
             actions[name] = CustomAction(sheet, width, height, Clip(0, count, fps, label.strip()),
-                                         loops, automatic and trigger != "drag", trigger)
+                                         loops, automatic and trigger is None, trigger)
         except (KeyError, OSError, ValueError, TypeError):
             logging.warning("Ignoring invalid custom action entry in %s: %r", manifest, entry)
     return actions
@@ -116,6 +116,7 @@ class Preferences:
     y: int | None = None
     auto_walk: bool = True
     auto_actions: bool = True
+    auto_sleep: bool = True
     follow_cursor: bool = True
     always_on_top: bool = True
     speech: bool = True

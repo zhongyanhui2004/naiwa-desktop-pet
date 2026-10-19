@@ -1,0 +1,44 @@
+{
+  "repository": "https://github.com/woainiunai/yellow-belly-creature-desktop",
+  "revision": "45857f860a221a4af1fd2469d658cc7ad8b4462e",
+  "retrieved_on": "2026-10-19",
+  "action": "sleep",
+  "source_directory": "assets/animations/sleep",
+  "source_files": [
+    {
+      "name": "00.png",
+      "sha256": "4bef0859fa2279e1b3cfc28450c52e33ac40abc597af780b6528cd77dcad038a"
+    },
+    {
+      "name": "01.png",
+      "sha256": "d460a2f57d56013ac55971595f24d48a5b010c03468627063dddc4740cb8f921"
+    },
+    {
+      "name": "02.png",
+      "sha256": "a9ab51747b2aa7c1150201487ef9bc401abcbed360730fc6ae1c7e42c66ae901"
+    }
+  ],
+  "source_mode": "RGBA",
+  "source_frame_size": [220, 224],
+  "shared_crop": [8, 28, 203, 178],
+  "resized_size": [176, 135],
+  "resampling": "Pillow LANCZOS",
+  "built_with_pillow": "12.2.0",
+  "frame_canvas": [192, 208],
+  "canvas_offset": [8, 65],
+  "frame_order": ["00.png", "01.png", "02.png"],
+  "frame_count": 3,
+  "fps": 1.0,
+  "output": "sleep.png",
+  "output_sha256": "98286246404c4c46ad4264cfa82cc77f9582c1617a15b6218e8869bbfd3c8ca1",
+  "processing": "Deterministic shared crop, proportional resize and horizontal concatenation on transparent canvases. Preserve original pose, eyes and embedded blue Z marks. Align the visible baseline to y=200, matching existing recorded actions. No AI edits, invented frames or new visual elements.",
+  "rebuild": "python tools/import_sleep_action.py",
+  "license_observations": {
+    "package_json_license": "MIT",
+    "standalone_license_file_found": false,
+    "readme_material_license_found": false,
+    "upstream_readme_describes": "Migration from DPET/Shimeji image frames; sleep is described as shime31.png through shime36.png, but this pinned directory actually contains only 00.png, 01.png and 02.png.",
+    "character_and_animation_rights": "Unconfirmed. The package's MIT field does not establish independent authorization for third-party character artwork.",
+    "usage_status": "Third-party artwork; rights not granted by this application's code license; applicable artwork permissions not independently verified."
+  }
+}

@@ -49,6 +49,7 @@ def main():
     shutil.copy2(ROOT / "README.md", output / "使用说明.md")
     shutil.copytree(ROOT / "docs", output / "docs", dirs_exist_ok=True)
     shutil.copy2(ROOT / "LICENSE", output / "LICENSE")
+    shutil.copy2(ROOT / "CHANGELOG.md", output / "更新记录.md")
     if debug:
         print(f"Debug build: {output / '奶娃桌宠.exe'}")
         return

@@ -1,0 +1,65 @@
+{
+  "repository": "https://github.com/woainiunai/yellow-belly-creature-desktop",
+  "revision": "45857f860a221a4af1fd2469d658cc7ad8b4462e",
+  "retrieved_on": "2026-10-19",
+  "action": "relax",
+  "source_directory": "assets/animations/relax",
+  "source_files": [
+    {
+      "name": "00.png",
+      "sha256": "ea4733e05fdd7290b2081804598d5a9cc795d75a5a63f91d034688374ef0a044"
+    },
+    {
+      "name": "01.png",
+      "sha256": "18a7e2193f54d35e3f317e941b58aa950b753512a53cbcf55b01f94c3a7819d4"
+    },
+    {
+      "name": "02.png",
+      "sha256": "b5a66139bfbcea8d06c087afa36f70ee73e73d525614edf6d32b6db538f705ef"
+    },
+    {
+      "name": "03.png",
+      "sha256": "bc509fcaf13497ecd8903daa5f4e7ebdf3dd7c1587f43fba9ea5268eefa42086"
+    }
+  ],
+  "source_mode": "RGBA",
+  "source_frame_size": [615, 536],
+  "shared_crop": [7, 0, 553, 529],
+  "resized_size": [180, 174],
+  "resampling": "Pillow LANCZOS",
+  "built_with_pillow": "12.2.0",
+  "frame_canvas": [192, 208],
+  "canvas_offset": [6, 26],
+  "frame_order": ["00.png", "01.png", "02.png", "03.png"],
+  "frame_count": 4,
+  "fps": 1.0,
+  "loops": 1,
+  "output": "relax.png",
+  "output_sha256": "df16f1aeb2eb374bd570925e65550bc42f11d1833a07f42a2de6c31293666987",
+  "processing": "Deterministic shared crop of the visible union, near-proportional resize and horizontal concatenation on transparent canvases. Preserve the entire character and expanding green gas cloud, including the cloud below the feet. The visible foot baseline is approximately y=187, with the final cloud ending at y=200; the original 192x208 pet canvas is retained. No AI edits, invented frames or new visual elements.",
+  "rebuild": "python tools/import_relax_action.py",
+  "upstream_animation_config": {
+    "path": "src/shared/defaults.js",
+    "fps": 1,
+    "loop": false,
+    "canMove": false,
+    "sound": "relax"
+  },
+  "upstream_audio_not_used": {
+    "path": "assets/sounds/relax.mp3",
+    "sha256": "2445c9077a8c7888e1e3b12aab8b9415c1527a8b3fb24db5af1f58fe30612e71",
+    "actual_format": "QuickTime/MOV container; HEVC video 984x1920, 24 fps, AAC stereo 44100 Hz audio; duration 4.04 seconds",
+    "reason": "Despite the mp3 suffix this is a video with a walking character. It is excluded from runtime assets. The application is silent: all audio playback, generated sounds and audio controls have been removed at the user's request."
+  },
+  "upstream_extra_effect_not_used": {
+    "path": "assets/effects/relax.png",
+    "description": "A separate poop-shaped character particle image, used by the upstream full-screen effect. Not included in this action."
+  },
+  "license_observations": {
+    "package_json_license": "MIT",
+    "standalone_license_file_found": false,
+    "readme_material_license_found": false,
+    "character_and_animation_rights": "Unconfirmed. The package's MIT field does not establish independent authorization for third-party character artwork.",
+    "usage_status": "Third-party artwork; rights not granted by this application's code license; applicable artwork permissions not independently verified."
+  }
+}

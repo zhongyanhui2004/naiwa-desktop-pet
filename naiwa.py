@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from autostart import is_enabled as is_autostart_enabled, set_enabled as set_autostart_enabled
 from browser_launch import open_chatgpt
+from version import APP_VERSION
 from pet_core import (
     ATLAS_SIZE, CLIPS, FRAME_HEIGHT, FRAME_WIDTH, Preferences, clamp, frame_at,
     load_custom_actions, look_direction,
@@ -118,6 +119,7 @@ class SpriteAtlas:
 
 class PetWindow(QWidget):
     BUBBLE_HEIGHT = 74
+    AUTO_SLEEP_SECONDS = 10 * 60
 
     def __init__(self, assets: Path, config_path: Path, *, enable_tray: bool = True):
         super().__init__()
@@ -129,6 +131,8 @@ class PetWindow(QWidget):
         self.custom_actions = self.atlas.custom_actions
         self.drag_action = next((name for name, action in self.custom_actions.items()
                                  if action.trigger == "drag"), None)
+        self.sleep_action = next((name for name, action in self.custom_actions.items()
+                                  if action.trigger == "sleep"), None)
         self.app_icon = QIcon(str(assets / "icon.ico"))
         if self.app_icon.isNull():
             self.app_icon = QIcon(self.atlas.frames["idle"][0])
@@ -141,6 +145,9 @@ class PetWindow(QWidget):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.action = "wave"
         self.action_started = time.monotonic()
+        self.last_interaction = self.action_started
+        self.sleeping = False
+        self._press_woke_sleep = False
         self.action_until = self.action_started + 2.4
         self.next_roam = self.action_started + 18
         self.next_custom_action = self.action_started + random.uniform(12, 25)
@@ -243,8 +250,10 @@ class PetWindow(QWidget):
         if self.custom_actions:
             self.menu.addSeparator()
             for action, metadata in self.custom_actions.items():
-                if metadata.trigger != "drag":
+                if metadata.trigger is None:
                     self.menu.addAction(metadata.clip.label, lambda checked=False, name=action: self.play(name))
+        self.sleep_menu_action = self.menu.addAction("睡觉", self.toggle_sleep)
+        self.sleep_menu_action.setEnabled(self.sleep_action is not None)
         self.menu.addSeparator()
         self.walk_action = QAction("自由散步", self.menu, checkable=True)
         self.walk_action.setChecked(self.preferences.auto_walk)
@@ -255,6 +264,11 @@ class PetWindow(QWidget):
         self.auto_actions_action.setEnabled(bool(self.custom_actions))
         self.auto_actions_action.triggered.connect(lambda enabled: self.set_preference("auto_actions", enabled))
         self.menu.addAction(self.auto_actions_action)
+        self.auto_sleep_action = QAction("10 分钟不互动后自动睡觉", self.menu, checkable=True)
+        self.auto_sleep_action.setChecked(self.preferences.auto_sleep)
+        self.auto_sleep_action.setEnabled(self.sleep_action is not None)
+        self.auto_sleep_action.triggered.connect(lambda enabled: self.set_preference("auto_sleep", enabled))
+        self.menu.addAction(self.auto_sleep_action)
         self.pause_action = self.menu.addAction("暂停陪伴", self.toggle_pause)
         self.menu.addAction("回到屏幕右下角", self.reset_position)
         if self.tray is not None or QSystemTrayIcon.isSystemTrayAvailable():
@@ -268,10 +282,13 @@ class PetWindow(QWidget):
         self.menu.aboutToHide.connect(self._menu_finished)
 
     def _menu_started(self):
+        self.last_interaction = time.monotonic()
         self.menu_open = True
         self._stop_walking()
         self.walk_action.setChecked(self.preferences.auto_walk)
         self.auto_actions_action.setChecked(self.preferences.auto_actions)
+        self.auto_sleep_action.setChecked(self.preferences.auto_sleep)
+        self.sleep_menu_action.setText("唤醒奶娃" if self.sleeping else "睡觉")
         self.pause_action.setText("继续陪伴" if self.paused else "暂停陪伴")
         if self.visibility_action:
             self.visibility_action.setText("叫奶娃出来" if not self.isVisible() else "暂时藏起来")
@@ -279,6 +296,7 @@ class PetWindow(QWidget):
     def _menu_finished(self):
         self.menu_open = False
         now = time.monotonic()
+        self.last_interaction = now
         self.next_roam = now + 15
         self._schedule_custom_action(now)
 
@@ -290,6 +308,7 @@ class PetWindow(QWidget):
             self.show_pet()
 
     def open_panel(self):
+        self.last_interaction = time.monotonic()
         self._stop_walking()
         if self.panel is None:
             self.panel = HomePanel(self)
@@ -306,6 +325,7 @@ class PetWindow(QWidget):
         self.raise_()
         self._last_tick = time.monotonic()
         if not was_visible:
+            self.last_interaction = self._last_tick
             self.next_roam = self._last_tick + 15
             self._schedule_custom_action(self._last_tick)
         if not self.paused:
@@ -324,6 +344,7 @@ class PetWindow(QWidget):
             self.show_pet()
 
     def set_preference(self, name: str, value):
+        self.last_interaction = time.monotonic()
         setattr(self.preferences, name, value)
         if name == "size":
             old_bottom = self.geometry().bottom()
@@ -346,6 +367,8 @@ class PetWindow(QWidget):
         elif name == "auto_actions":
             self._schedule_custom_action(time.monotonic())
             self.auto_actions_action.setChecked(value)
+        elif name == "auto_sleep":
+            self.auto_sleep_action.setChecked(value)
         elif name == "speech" and not value:
             self.bubble_text = ""
         self._display_key = None
@@ -377,8 +400,62 @@ class PetWindow(QWidget):
         return min(100, max(16, round(1000 / self.clips[self.action].fps)))
 
     def _can_start_automatic(self) -> bool:
-        return (self.isVisible() and not self.paused and self.drag_anchor is None
+        return (self.isVisible() and not self.paused and not self.sleeping and self.drag_anchor is None
                 and not self.menu_open and not (self.panel and self.panel.isVisible()))
+
+    def sleep(self, *, automatic: bool = False) -> bool:
+        if self.sleep_action is None or self.sleeping or self.drag_anchor is not None:
+            return False
+        if automatic and not self._can_start_automatic():
+            return False
+        if self.paused:
+            self.toggle_pause()
+        if not automatic:
+            self.show_pet()
+            self.last_interaction = time.monotonic()
+        self._stop_walking()
+        self.sleeping = True
+        self.action = self.sleep_action
+        self.action_started = time.monotonic()
+        self.action_until = float("inf")
+        self.bubble_text = ""
+        self._display_key = None
+        self.timer.start(self._animation_interval())
+        self._refresh_frame()
+        self._sync_status()
+        logging.info("Pet fell asleep: automatic=%s", automatic)
+        return True
+
+    def wake(self, *, speak: bool = True) -> bool:
+        if not self.sleeping:
+            return False
+        now = time.monotonic()
+        self.sleeping = False
+        self.action = "idle"
+        self.action_started = now
+        self.action_until = 0
+        self.walk_until = 0
+        self.last_interaction = now
+        self.next_roam = now + 15
+        self._schedule_custom_action(now)
+        self._last_tick = now
+        if self.paused:
+            self.pause_started = now
+        elif self.isVisible():
+            self.timer.start(self._animation_interval())
+        if speak:
+            self.say("睡醒啦，继续陪你！")
+        self._display_key = None
+        self._refresh_frame()
+        self._sync_status()
+        logging.info("Pet woke up")
+        return True
+
+    def toggle_sleep(self):
+        if self.sleeping:
+            self.wake()
+        else:
+            self.sleep()
 
     def _start_random_action(self, now: float) -> bool:
         if not self._can_start_automatic() or self.action != "idle" or self.walk_until:
@@ -394,10 +471,15 @@ class PetWindow(QWidget):
         return True
 
     def play(self, action: str, *, speak: bool = True, automatic: bool = False):
+        if action == self.sleep_action and self.sleep_action is not None:
+            return self.sleep(automatic=automatic)
         if action not in self.clips or self.dragging:
             return
         if automatic and (not self._can_start_automatic() or self.action != "idle" or self.walk_until):
             return
+        if not automatic:
+            self.wake(speak=False)
+            self.last_interaction = time.monotonic()
         if self.paused:
             self.toggle_pause()
         if not automatic:
@@ -420,11 +502,14 @@ class PetWindow(QWidget):
             logging.info("Playing custom action: id=%s automatic=%s", action, automatic)
         if speak and action in ACTION_TEXT:
             self.say(ACTION_TEXT[action][1])
+        if action == "relax":
+            self.bubble_text = ""
         self._refresh_frame()
         self._sync_status()
 
     def toggle_pause(self):
         now = time.monotonic()
+        self.last_interaction = now
         if self._drag_animation_active:
             # A deliberate drag keeps playing even when companionship is paused.
             # The switch still determines whether animation resumes on release.
@@ -464,6 +549,8 @@ class PetWindow(QWidget):
             self._sync_status()
 
     def _start_walk(self, now: float):
+        if self.sleeping:
+            return
         self.direction = random.choice((-1, 1))
         self.position_x = float(self.x())
         self.walk_until = now + random.uniform(2.8, 5)
@@ -492,6 +579,12 @@ class PetWindow(QWidget):
         if self.bubble_text and now >= self.bubble_until:
             self.bubble_text = ""
             self._display_key = None
+        if (not self.sleeping and self.sleep_action is not None and self.preferences.auto_sleep
+                and now - self.last_interaction >= self.AUTO_SLEEP_SECONDS and self._can_start_automatic()):
+            self.sleep(automatic=True)
+        if self.sleeping:
+            self._refresh_frame()
+            return
         if self.walk_until:
             if now >= self.walk_until:
                 self._stop_walking()
@@ -572,6 +665,9 @@ class PetWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if self.drag_anchor is not None:
                 self._finish_mouse_interaction(cancelled=True)
+            self._press_woke_sleep = self.sleeping
+            self.wake(speak=False)
+            self.last_interaction = time.monotonic()
             self._stop_walking()
             self._mouse_interaction += 1
             self.press_position = event.globalPosition().toPoint()
@@ -627,12 +723,15 @@ class PetWindow(QWidget):
             return
         dragged = self.dragging
         animated = self._drag_animation_active
+        woke_sleep = self._press_woke_sleep
+        self._press_woke_sleep = False
         self.drag_anchor = None
         self.press_position = None
         self.dragging = False
         self._drag_animation_active = False
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         now = time.monotonic()
+        self.last_interaction = now
         self._last_tick = now
         self.position_x = float(self.x())
         self.save_preferences()
@@ -648,7 +747,10 @@ class PetWindow(QWidget):
         else:
             self.timer.start(self._animation_interval())
         if not dragged and not cancelled:
-            self.play("laugh")
+            if woke_sleep:
+                self.say("睡醒啦，继续陪你！")
+            else:
+                self.play("laugh")
         elif dragged and not self.paused and not cancelled:
             if not animated:
                 self.play("wave", speak=False)
@@ -660,6 +762,7 @@ class PetWindow(QWidget):
             logging.info("Drag ended: action=%s cancelled=%s paused=%s", self.drag_action, cancelled, self.paused)
 
     def _open_chatgpt(self):
+        self.last_interaction = time.monotonic()
         try:
             open_chatgpt()
             message = "已用谷歌浏览器打开 ChatGPT。"
@@ -706,6 +809,7 @@ class PetWindow(QWidget):
         event.accept()
 
     def reset_position(self):
+        self.last_interaction = time.monotonic()
         area = QApplication.primaryScreen().availableGeometry()
         self._stop_walking()
         self.move(self._clamped_position(QPoint(area.right() - self.width() - 35,
@@ -764,7 +868,7 @@ class HomePanel(QDialog):
         heading = QLabel("今天也陪你一起摸鱼")
         heading.setObjectName("heading")
         titles.addWidget(heading)
-        subtitle = QLabel("一只奶娃，一点好心情。")
+        subtitle = QLabel(f"一只奶娃，一点好心情。 · {APP_VERSION}")
         subtitle.setObjectName("muted")
         titles.addWidget(subtitle)
         titles.setSpacing(7)
@@ -793,7 +897,7 @@ class HomePanel(QDialog):
         grid.setSpacing(9)
         actions = [(action, text) for action, (text, _) in ACTION_TEXT.items()]
         actions.extend((action, metadata.clip.label) for action, metadata in pet.custom_actions.items()
-                       if metadata.trigger != "drag")
+                       if metadata.trigger is None)
         self.action_buttons: dict[str, QPushButton] = {}
         for i, (action, text) in enumerate(actions):
             button = QPushButton(text)
@@ -801,12 +905,16 @@ class HomePanel(QDialog):
             button.clicked.connect(lambda checked=False, name=action: pet.play(name))
             self.action_buttons[action] = button
             grid.addWidget(button, i // 3, i % 3)
+        self.sleep_button = QPushButton("睡觉")
+        self.sleep_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.sleep_button.setEnabled(pet.sleep_action is not None)
+        self.sleep_button.clicked.connect(pet.toggle_sleep)
         self.chatgpt_button = QPushButton("打开 ChatGPT")
         self.chatgpt_button.setObjectName("primary")
         self.chatgpt_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.chatgpt_button.setToolTip("使用谷歌 Chrome 打开 ChatGPT")
         self.chatgpt_button.clicked.connect(pet._open_chatgpt)
-        grid.addWidget(self.chatgpt_button, len(actions) // 3, len(actions) % 3)
+        grid.addWidget(self.chatgpt_button, (len(actions) + 2) // 3, 0, 1, 3)
         actions_layout.addLayout(grid)
         self.chatgpt_status = QLabel("ChatGPT 会在谷歌浏览器中打开。")
         self.chatgpt_status.setObjectName("muted")
@@ -839,10 +947,13 @@ class HomePanel(QDialog):
             ("auto_walk", "在桌面自由散步"), ("auto_actions", "随机播放新动作"),
             ("follow_cursor", "好奇地看向鼠标"),
             ("always_on_top", "一直待在最上面"), ("speech", "偶尔说句悄悄话"),
+            ("auto_sleep", "10 分钟不互动后自动睡觉"),
         ]):
             check = QCheckBox(text)
             check.toggled.connect(lambda enabled, key=name: pet.set_preference(key, enabled))
             self.checks[name] = check
+            if name == "auto_sleep":
+                check.setEnabled(pet.sleep_action is not None)
             toggles.addWidget(check, i // 2, i % 2)
         self.startup_button = QPushButton()
         self.startup_button.setObjectName("autostart")
@@ -850,7 +961,7 @@ class HomePanel(QDialog):
         self.startup_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.startup_button.setToolTip("开启后，登录 Windows 时自动显示奶娃。")
         self.startup_button.clicked.connect(self._toggle_autostart)
-        toggles.addWidget(self.startup_button, 2, 1)
+        toggles.addWidget(self.startup_button, 3, 0, 1, 2)
         settings_layout.addLayout(toggles)
         self.startup_error = QLabel()
         self.startup_error.setObjectName("muted")
@@ -860,7 +971,7 @@ class HomePanel(QDialog):
         root.addWidget(settings)
 
         drag_help = pet.custom_actions[pet.drag_action].clip.label if pet.drag_action else "搬家"
-        help_label = QLabel(f"轻点：大笑  ·  拖动：{drag_help}\n滚轮调整大小，右键奶娃或托盘图标打开小窝。")
+        help_label = QLabel(f"轻点：大笑／唤醒  ·  拖动：{drag_help}\n睡觉时会暂停散步，轻点或拖动就能叫醒。")
         help_label.setObjectName("muted")
         help_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(help_label)
@@ -868,6 +979,7 @@ class HomePanel(QDialog):
         self.pause_button = QPushButton("暂停陪伴")
         self.pause_button.clicked.connect(pet.toggle_pause)
         footer.addWidget(self.pause_button)
+        footer.addWidget(self.sleep_button)
         find_button = QPushButton("把奶娃叫回来")
         find_button.setObjectName("primary")
         find_button.clicked.connect(pet.reset_position)
@@ -917,7 +1029,10 @@ class HomePanel(QDialog):
 
     def sync_status(self):
         resting = self.pet.paused and not self.pet._drag_animation_active
-        self.status.setText("休息中" if resting else self.pet.clips[self.pet.action].label + "中")
+        self.status.setText("已暂停" if resting else "睡觉中" if self.pet.sleeping
+                            else self.pet.clips[self.pet.action].label + "中")
+        self.sleep_button.setText("唤醒奶娃" if self.pet.sleeping else "睡觉")
+        self.pet.sleep_menu_action.setText("唤醒奶娃" if self.pet.sleeping else "睡觉")
         self.pause_button.setText("继续陪伴" if self.pet.paused else "暂停陪伴")
 
     def sync(self):
@@ -934,6 +1049,7 @@ class HomePanel(QDialog):
 
     def closeEvent(self, event):
         now = time.monotonic()
+        self.pet.last_interaction = now
         self.pet.next_roam = now + 15
         self.pet._schedule_custom_action(now)
         self.pet.save_preferences()
